@@ -1,0 +1,6 @@
+{
+    "env": {
+        "MONGODB_ATLAS_PW": "Pepe130897",
+        "PORT": "8080"
+    }
+}
