@@ -40,7 +40,7 @@ exports.getSimilarIngredients = (req, res, next) => {
                 matrix[i][j] = Math.min(
                                 matrix[i-1][j-1] + (userInput[i-1] == ingredient.name[j-1] ? 0 : 13), //substitute char cost
                                 matrix[i-1][j] + 7, //delete char cost
-                                matrix[i][j-1] + 4) //add char cost
+                                matrix[i][j-1] + 5) //add char cost
             }
         }
 
@@ -53,11 +53,14 @@ exports.getSimilarIngredients = (req, res, next) => {
         });
     })
 
-    ingredientsSimilarity.sort((a, b) => (a.distance > b.distance) ? 1 : -1)
+    ingredientsSimilarity = ingredientsSimilarity.sort((a, b) => (a.distance > b.distance) ? 1 : -1)
+                                .filter((obj, index) => index<1000)
+    
+    res.status ? res.status(200).json({ 
+        result: ingredientsSimilarity
+    }) : null;
 
-    res.status(200).json({ 
-        result: ingredientsSimilarity.filter((obj, index) => index<1000)
-    });
+    return ingredientsSimilarity
 };
 
 exports.getIngredient = (req, res, next) => {
