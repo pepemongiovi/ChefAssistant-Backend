@@ -17,9 +17,21 @@ exports.getIngredients = (req, res, next) => {
 
 exports.getSimilarIngredients = (req, res, next) => {
     const userInput = req.params.name;
+    const selectedFilters = req.body.selectedFilters
 
     let rawdata = fs.readFileSync('ingredients.json');  
-    let ingredients = JSON.parse(rawdata); 
+    let ingredients = JSON.parse(rawdata)
+    
+    ingredients = ingredients.filter(ingredient => {
+        let matchesFilters = true
+        selectedFilters.forEach(filter => {
+            if(!ingredient[filter]) {
+                matchesFilters = false
+            }
+        })
+        return matchesFilters
+    }); 
+
     let ingredientsSimilarity = [];
 
     ingredients.forEach(ingredient => {

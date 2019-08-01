@@ -52,9 +52,10 @@ exports.updateRecipe = (req, res, next) => {
 
 exports.getRecommendedRecipes = (req, res, next) => {
     const ingredientsId = req.body.ids;
-    const mainIngredient = ic.getSimilarIngredients({ params: { name: req.body.mainIngredient }}, {})
-                            .filter((obj, i) => i<50)
-    console.log(mainIngredient)
+    const selectedFilters = req.body.selectedFilters
+    const mainIngredient = ic.getSimilarIngredients({ params: { name: req.body.mainIngredient }, body: {selectedFilters: selectedFilters}}, {})
+                            .filter((obj, i) => i<100)
+
     ingredientsId.push(mainIngredient)
 
     let recipes = {}
@@ -77,11 +78,11 @@ exports.getRecommendedRecipes = (req, res, next) => {
   
     recipes = Object.keys(recipes).map(key => recipes[key])
                 .sort((r1, r2) => (r2.matchedIngredients.length - r1.matchedIngredients.length))
-                .filter((recipe, index) => index<200)
                 .sort((r1, r2) => {
                     return (r2.matchedIngredients.length/r2.totalRecipeIngredientsCount
                         - r1.matchedIngredients.length/r1.totalRecipeIngredientsCount)
                 })
+                .filter((e, i) => i<200)
     
     recipesWithMainIngredient = recipes.filter(recipe => mainIngredient.filter(i => i.recipeId == recipe.recipeId).length > 0)
     otherRecipes = recipes.filter(recipe => mainIngredient.filter(i => i.recipeId == recipe.recipeId).length == 0)
