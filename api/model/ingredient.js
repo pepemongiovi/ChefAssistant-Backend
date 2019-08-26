@@ -6,16 +6,12 @@ const ingredientSchema = mongoose.Schema({
         type: String, 
         required: true 
     },
-    amount: {
+    label: {
         type: String,
         required: true
     },
-    unit: {
-        type: String,
-        required: false
-    },
-    label: {
-        type: String,
+    ingredientsPaired: {
+        type: Number,
         required: true
     },
     recipeId: { 

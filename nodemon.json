@@ -1,6 +1,7 @@
 {
     "env": {
         "MONGODB_ATLAS_PW": "Pepe130897",
-        "PORT": "8080"
+        "PORT": "8080",
+        "NODE_OPTIONS": "--experimental-worker"
     }
 }

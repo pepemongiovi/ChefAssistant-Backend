@@ -6,7 +6,7 @@ router.get('/', IngredientController.getIngredients);
 
 router.get('/:id', IngredientController.getIngredient);
 
-router.get('/similarIngredients/:name', IngredientController.getSimilarIngredients);
+router.post('/similarIngredients', IngredientController.getSimilarIngredients);
 
 router.post('/', IngredientController.createIngredient);
 

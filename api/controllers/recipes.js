@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Recipe = require('../model/recipe');
-const unirest = require('unirest');
-const ic = require('../controllers/ingredients')
+const IngredientsController = require('../controllers/ingredients')
 const fs = require('fs')
 
 exports.getRecipes = (req, res, next) => {    
@@ -22,14 +21,14 @@ const addIngredients = (ingredients, recipeId) => {
         req.body = {
             _id: new mongoose.Types.ObjectId,
             name: i.name,
-            amount: i.amount,
-            unit: i.unit,
+            ingredientsPaired: ingredients.length,
             originalString: i.originalString,
             recipeId: recipeId
         }
         savedIngredients.push(req.body._id);
-        ic.createIngredient(req);
+        IngredientsController.createIngredient(req);
     })
+   
     return savedIngredients;
 }
 
@@ -51,15 +50,18 @@ exports.updateRecipe = (req, res, next) => {
 };
 
 exports.getRecommendedRecipes = (req, res, next) => {
-    const ingredientsId = req.body.ids;
-    const selectedFilters = req.body.selectedFilters
-    const mainIngredient = ic.getSimilarIngredients({ params: { name: req.body.mainIngredient }, body: {selectedFilters: selectedFilters}}, {})
-                            .filter((obj, i) => i<100)
-
-    ingredientsId.push(mainIngredient)
-
+    const ingredientsId = req.body.ingredientsIds;
+    const mainIngredientIds = req.body.mainIngredientIds.filter(
+                        ingredient => ingredient.distance < 15);
+    
+    // console.log(mainIngredientIds.map(i => { return {name: i.name, distance: i.distance }}))
+    // console.log(mainIngredientIds[mainIngredientIds.length-1])
+    
+    ingredientsId.push(mainIngredientIds)
+    
     let recipes = {}
 
+    //Finds intersection between similar ingredient's recipeId
     ingredientsId.forEach(ids => {
         ids.forEach(ingredient => {
             let id = ingredient.recipeId
@@ -75,18 +77,19 @@ exports.getRecommendedRecipes = (req, res, next) => {
             }
         })
     })
-  
+
+    //Sorts by matchedIngredients, then by matchedIngredients divided by
+    //the total ingredients count; At last, filters the first 200 
     recipes = Object.keys(recipes).map(key => recipes[key])
                 .sort((r1, r2) => (r2.matchedIngredients.length - r1.matchedIngredients.length))
-                .sort((r1, r2) => {
-                    return (r2.matchedIngredients.length/r2.totalRecipeIngredientsCount
-                        - r1.matchedIngredients.length/r1.totalRecipeIngredientsCount)
-                })
                 .filter((e, i) => i<200)
-    
-    recipesWithMainIngredient = recipes.filter(recipe => mainIngredient.filter(i => i.recipeId == recipe.recipeId).length > 0)
-    otherRecipes = recipes.filter(recipe => mainIngredient.filter(i => i.recipeId == recipe.recipeId).length == 0)
-    //console.log(recipesWithMainIngredient)
+
+    recipesWithMainIngredient = recipes.filter(recipe => 
+            mainIngredientIds.filter(i => i.recipeId == recipe.recipeId).length > 0)
+
+    otherRecipes = recipes.filter(recipe => 
+            mainIngredientIds.filter(i => i.recipeId == recipe.recipeId).length == 0)
+
     recipes = recipesWithMainIngredient.concat(otherRecipes)
 
     res.status(200).json({ recipes: recipes.filter((obj, i) => i < 20) })
@@ -126,13 +129,12 @@ exports.createRecipe = (req, res, next) => {
 
     const recipe = new Recipe({
         _id: id,
-        title: req.body.title,
-        ingredients: addIngredients(req.body.extendedIngredients, id),
+        title: req.body.name,
+        ingredients: addIngredients(req.body.ingredients, id),
         image: req.body.image,
         instructions: req.body.instructions,
         cookingMinutes: req.body.cookingMinutes,
         preparationMinutes : req.body.preparationMinutes,
-        cheap: req.body.cheap, 
         veryPopular: req.body.veryPopular, 
         lowFodmap: req.body.lowFodmap,
         veryHealthy: req.body.veryHealthy,
@@ -158,51 +160,10 @@ exports.createRecipe = (req, res, next) => {
             }
         })
         .catch(err => {
-            recipes.ingredients.forEach(r => {
-                ic.deleteIngredient({ params: {id: r}})
+            console.log(err)
+            recipe.ingredients.forEach(r => {
+                IngredientsController.deleteIngredient({ params: {id: r}})
             })
-            console.log(err);
-            res.status(500).json({ error: err })
-        }); 
-};
-
-const createdRecipee = (req, res, next) => {
-    
-    const recipe = new Recipe({
-        _id: new mongoose.Types.ObjectId,
-        title: req.body.title,
-        ingredients: [],
-        image: req.body.image,
-        instructions: req.body.instructions,
-        cookingMinutes: req.body.cookingMinutes,
-        preparationMinutes : req.body.preparationMinutes,
-        cheap: req.body.cheap, 
-        veryPopular: req.body.veryPopular, 
-        lowFodmap: req.body.lowFodmap,
-        veryHealthy: req.body.veryHealthy,
-        glutenFree: req.body.glutenFree,
-        vegan: req.body.vegan,
-        vegetarian: req.body.vegetarian,
-        ketogenic: req.body.ketogenic,
-        sustainable: req.body.sustainable,
-        dairyFree: req.body.dairyFree,
-        whole30: req.body.whole30
-    });
-
-    recipe.save()
-        .then( result => {
-            if(result) {
-                addIngredients(req.body.extendedIngredients, result._id);
-                // res.status(200).json({
-                //     message: 'Handling POST request to /recipes',
-                //     createdRecipe: recipe
-                // });
-            }
-            else {
-                res.status(404).json({ message: 'No valid entry found.' })
-            }
-        })
-        .catch(err => {
             console.log(err);
             res.status(500).json({ error: err })
         }); 

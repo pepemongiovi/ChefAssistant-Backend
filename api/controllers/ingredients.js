@@ -1,27 +1,53 @@
-const mongoose = require('mongoose');
 const Ingredient = require('../model/ingredient');
-const RecipeController = require('../controllers/recipes');
-const fs = require('fs');
+const fs = require('fs')
+const { StaticPool } = require("node-worker-threads-pool");
+const { Worker } = require('worker_threads')
+const Promise = require('promise')
 
 exports.getIngredients = (req, res, next) => {
     Ingredient.find()
         .select('name recipeId')
         .exec()
-        .then(res.status(200).json(result))
-        .catch(err => {
-            console.log(err);
-            res.status(500).json({ error: err })
+        .then(result => {
+            if(result) res.status(200).json(result);
+            else res.status(404);
         })
-};
+        .catch(err => {
+            res.status(500).json({ error: err })
+        }) 
+}
 
+const levenshteinDistance = (str1, str2) => {
+    const rows = str1.length + 1
+    const cols = str2.length + 1
+    const deleteCost = 8
+    const insertCost = 5
+    const substituteCost = 13
 
-exports.getSimilarIngredients = (req, res, next) => {
-    const userInput = req.params.name;
-    const selectedFilters = req.body.selectedFilters
+    let matrix = Array(rows).fill().map(() => Array(cols).fill(0));
+        
+    for(let row = 1; row<rows; row++) {
+        matrix[row][0] = row * deleteCost;
+    }
 
-    let rawdata = fs.readFileSync('ingredients.json');  
-    let ingredients = JSON.parse(rawdata)
-    
+    for(let col = 0; col<cols; col++) {
+        matrix[0][col] = col * insertCost;
+    }
+
+    for(let col = 1; col<cols; col++) {
+        for(let row = 1; row<rows; row++) {
+            matrix[row][col] = Math.min(
+                            matrix[row-1][col-1] + (str1[row-1] == str2[col-1] ? 0 : substituteCost), //substitute char cost
+                            matrix[row-1][col] + deleteCost, //delete char cost
+                            matrix[row][col-1] + insertCost) //add char cost
+        }
+    }
+
+    return matrix[rows-1][cols-1];
+}
+
+const processSimilarIngredients = (ingredients, selectedFilters, userInput) => {
+    //Filters the ingredients by selected filters
     ingredients = ingredients.filter(ingredient => {
         let matchesFilters = true
         selectedFilters.forEach(filter => {
@@ -35,28 +61,15 @@ exports.getSimilarIngredients = (req, res, next) => {
     let ingredientsSimilarity = [];
 
     ingredients.forEach(ingredient => {
-        let iSize = userInput.length + 1;
-        let jSize = ingredient.name.length + 1;
-        let matrix = Array(iSize).fill().map(() => Array(jSize).fill(0));
+        let minimumEditDistance = 0
+
+        if(ingredientsSimilarity.length == 0 || ingredientsSimilarity[ingredientsSimilarity.length-1].name != ingredient.name) {   
+            minimumEditDistance = levenshteinDistance(userInput, ingredient.name) 
+        }
+        else {
+            minimumEditDistance = ingredientsSimilarity[ingredientsSimilarity.length-1].distance
+        }
         
-        for(let i = 0; i<iSize; i++) {
-            matrix[i][0] = i;
-        }
-
-        for(let i = 0; i<jSize; i++) {
-            matrix[0][i] = i;
-        }
-
-        for(let i = 1; i<iSize; i++) {
-            for(let j = 1; j<jSize; j++) {
-                matrix[i][j] = Math.min(
-                                matrix[i-1][j-1] + (userInput[i-1] == ingredient.name[j-1] ? 0 : 13), //substitute char cost
-                                matrix[i-1][j] + 7, //delete char cost
-                                matrix[i][j-1] + 5) //add char cost
-            }
-        }
-
-        let minimumEditDistance = matrix[iSize-1][jSize-1];
         ingredientsSimilarity.push({
             name: ingredient.name, 
             distance: minimumEditDistance, 
@@ -64,22 +77,83 @@ exports.getSimilarIngredients = (req, res, next) => {
             totalRecipeIngredientsCount: ingredient.ingredientsPaired
         });
     })
-
+  
     ingredientsSimilarity = ingredientsSimilarity.sort((a, b) => (a.distance > b.distance) ? 1 : -1)
-                                .filter((obj, index) => index<1000)
-    
-    res.status ? res.status(200).json({ 
-        result: ingredientsSimilarity
-    }) : null;
+                                .filter((obj, index) => index<3000)
+                                .filter(ingredient => ingredient.distance < 25)
 
     return ingredientsSimilarity
+}
+
+const getSimilarIngredientsWorker = (ingredients, selectedFilters, ingredient) => {
+    return new Promise((resolve, reject) => {
+        new Worker('./api/workers/IngredientSimilarityWorker.js', 
+            { workerData: { 
+                ingredients: ingredients,
+                selectedFilters: selectedFilters,
+                ingredient: ingredient
+              } 
+            }
+        );
+        worker.on('message', resolve);
+        worker.on('error', reject);
+        worker.on('exit', (code) => {
+            if (code !== 0)
+                reject(new Error(`Worker stopped with exit code ${code}`));
+        })
+    })
+}
+
+exports.getSimilarIngredients = (req, res, next) => {
+    let selectedFilters = req.body.selectedFilters 
+    let selectedIngredients = req.body.ingredients
+    let selectedMainIngredient = req.body.mainIngredient
+
+    let rawdata = fs.readFileSync('allIngredients.json');  
+    let ingredients = JSON.parse(rawdata).sort((a,b) => a["name"]>b["name"])
+
+    let result = { mainIngredientIds: null, ingredientsIds: []}
+
+    const pool = new StaticPool({
+        size: selectedIngredients.length + 1,
+        task: './api/workers/IngredientSimilarityWorker.js'
+    });
+
+    let promises = [pool.exec({
+        ingredients: ingredients,
+        selectedFilters: selectedFilters,
+        ingredient: selectedMainIngredient
+    })]
+
+    selectedIngredients.forEach( async ingredient => {
+        promises.push(pool.exec({ingredients, selectedFilters, ingredient}))
+    })
+
+    Promise.all(promises).then(function(values) {
+        result.mainIngredientIds = values[0]
+        
+        for(let i = 1; i<promises.length; i++) {
+            result.ingredientsIds.push(values[i])
+        }
+
+        res.status ? res.status(200).json({ result }) : null;
+    });
+
+    // result.mainIngredientIds = processSimilarIngredients(ingredients, selectedFilters, selectedMainIngredient)
+
+    // selectedIngredients.forEach( ingredient => {
+    //     result.ingredientsIds.push(processSimilarIngredients(ingredients, selectedFilters, ingredient))
+    //  })
+
+    // res.status ? res.status(200).json({ result }) : null;
+
 };
 
 exports.getIngredient = (req, res, next) => {
     const id = req.params.id;
 
     Ingredient.find({ _id: id })
-        .select('_id name amount unit label')
+        .select('_id name label')
         .exec()
         .then(result => {
             if(result) res.status(200).json(result);
@@ -92,41 +166,11 @@ exports.getIngredient = (req, res, next) => {
 };
 
 exports.createIngredient = (req, res, next) => {
-    // const ingredients = ['tomatoes', 'cheese', 'chicken', 'olive oil', 'bread', 'pasta'];
-    // const fs = require('fs');
-
-    // let rawdata = fs.readFileSync('finalRecipes.json');  
-    // let recipes = JSON.parse(rawdata); 
-    // let recipeRank = [];
-    // let a = 0;
-    // //res.status(200).json({'name': recipes[0].extendedIngredients[0].name});
-    // for(let i = 0; i < recipes.length; i++) {
-    //     let matches = 0;
-    //     for(let j = 0; j < ingredients.length; j++){
-    //         for (let w = 0; w < recipes[i].extendedIngredients.length; w++) {
-    //             if(recipes[i].extendedIngredients[w].name == ingredients[j]) {
-    //                 matches += 1;
-    //             }
-    //         }
-    //     }
-    //     recipeRank.push({matches: matches/recipes[i].extendedIngredients.length, recipe: recipes[i]})
-    // }
-
-    // recipeRank.sort((a, b) => (a.matches < b.matches) ? 1 : -1)
-
-    // result = [];
-
-    // for (let i = 0; i < 20; i++){
-    //     result.push(recipeRank[i]);
-    // }
-    // res.status(200).json(result);
-
     const ingredient = new Ingredient({
         _id: req.body._id,
         name: req.body.name,
-        amount: req.body.amount,
-        unit: req.body.unit,
         label: req.body.originalString,
+        ingredientsPaired: req.body.ingredientsPaired,
         recipeId: req.body.recipeId
     })
 

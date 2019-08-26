@@ -8,7 +8,7 @@ const recipeSchema = mongoose.Schema({
     },
     image: { 
         type: String, 
-        required: false 
+        required: true 
     },
     instructions: { 
         type: String, 
@@ -21,10 +21,6 @@ const recipeSchema = mongoose.Schema({
     preparationMinutes: { 
         type: Number, 
         required: false 
-    },
-    cheap: { 
-        type: Boolean, 
-        required: true 
     },
     veryPopular: { 
         type: Boolean, 
@@ -68,8 +64,9 @@ const recipeSchema = mongoose.Schema({
     },
     ingredients: [{ 
         type: mongoose.Schema.Types.ObjectId, 
+        required: true,
         ref: 'Ingredient'
-    }],
+    }]
 });
 
 module.exports = mongoose.model('Recipe', recipeSchema);
