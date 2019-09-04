@@ -1,4 +1,4 @@
-const Ingredient = require('../model/ingredient');
+const Ingredient = require('../models/ingredient');
 const fs = require('fs')
 const { StaticPool } = require("node-worker-threads-pool");
 const { Worker } = require('worker_threads')
@@ -87,7 +87,7 @@ const processSimilarIngredients = (ingredients, selectedFilters, userInput) => {
 
 const getSimilarIngredientsWorker = (ingredients, selectedFilters, ingredient) => {
     return new Promise((resolve, reject) => {
-        new Worker('./api/workers/IngredientSimilarityWorker.js', 
+        new Worker('./api/workers/ingredient-similarity.js', 
             { workerData: { 
                 ingredients: ingredients,
                 selectedFilters: selectedFilters,
@@ -116,7 +116,7 @@ exports.getSimilarIngredients = (req, res, next) => {
 
     const pool = new StaticPool({
         size: selectedIngredients.length + 1,
-        task: './api/workers/IngredientSimilarityWorker.js'
+        task: './api/workers/ingredient-similarity.js'
     });
 
     let promises = [pool.exec({

@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
-const Recipe = require('../model/recipe');
+const Recipe = require('../models/recipe');
 const IngredientsController = require('../controllers/ingredients')
-const fs = require('fs')
 
 exports.getRecipes = (req, res, next) => {    
     Recipe.find()
