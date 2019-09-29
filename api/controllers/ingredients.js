@@ -106,6 +106,7 @@ const getSimilarIngredientsWorker = (ingredients, selectedFilters, ingredient) =
 
 exports.getSimilarIngredients = (req, res, next) => {
     let selectedFilters = req.body.selectedFilters 
+    let ignoredRecipes = req.body.ignoredRecipes 
     let selectedIngredients = req.body.ingredients
     let selectedMainIngredient = req.body.mainIngredient
 
@@ -122,11 +123,12 @@ exports.getSimilarIngredients = (req, res, next) => {
     let promises = [pool.exec({
         ingredients: ingredients,
         selectedFilters: selectedFilters,
+        ignoredRecipes: ignoredRecipes,
         ingredient: selectedMainIngredient
     })]
 
     selectedIngredients.forEach( async ingredient => {
-        promises.push(pool.exec({ingredients, selectedFilters, ingredient}))
+        promises.push(pool.exec({ingredients, selectedFilters, ignoredRecipes, ingredient}))
     })
 
     Promise.all(promises).then(function(values) {
@@ -138,15 +140,6 @@ exports.getSimilarIngredients = (req, res, next) => {
 
         res.status ? res.status(200).json({ result }) : null;
     });
-
-    // result.mainIngredientIds = processSimilarIngredients(ingredients, selectedFilters, selectedMainIngredient)
-
-    // selectedIngredients.forEach( ingredient => {
-    //     result.ingredientsIds.push(processSimilarIngredients(ingredients, selectedFilters, ingredient))
-    //  })
-
-    // res.status ? res.status(200).json({ result }) : null;
-
 };
 
 exports.getIngredient = (req, res, next) => {
@@ -177,7 +170,7 @@ exports.createIngredient = (req, res, next) => {
     ingredient.save()
         .then(result => {
             if(result){
-                //res.status(200).json(result);
+                res.status(200).json(result);
             } 
             else res.status(404);
         })

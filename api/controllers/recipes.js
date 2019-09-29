@@ -53,9 +53,6 @@ exports.getRecommendedRecipes = (req, res, next) => {
     const mainIngredientIds = req.body.mainIngredientIds.filter(
                         ingredient => ingredient.distance < 15);
     
-    // console.log(mainIngredientIds.map(i => { return {name: i.name, distance: i.distance }}))
-    // console.log(mainIngredientIds[mainIngredientIds.length-1])
-    
     ingredientsId.push(mainIngredientIds)
     
     let recipes = {}
@@ -77,8 +74,6 @@ exports.getRecommendedRecipes = (req, res, next) => {
         })
     })
 
-    //Sorts by matchedIngredients, then by matchedIngredients divided by
-    //the total ingredients count; At last, filters the first 200 
     recipes = Object.keys(recipes).map(key => recipes[key])
                 .sort((r1, r2) => (r2.matchedIngredients.length - r1.matchedIngredients.length))
                 .filter((e, i) => i<200)

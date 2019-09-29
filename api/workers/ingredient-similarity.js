@@ -1,4 +1,4 @@
-const { workerData, parentPort } = require('worker_threads')
+const { parentPort } = require('worker_threads')
 
 const levenshteinDistance = (str1, str2) => {
     const rows = str1.length + 1
@@ -29,8 +29,7 @@ const levenshteinDistance = (str1, str2) => {
     return matrix[rows-1][cols-1];
 }
 
-const processSimilarIngredients = (ingredients, selectedFilters, userInput) => {
-    console.log(userInput)
+const processSimilarIngredients = (ingredients, selectedFilters, ignoredRecipes, userInput) => {
     //Filters the ingredients by selected filters
     ingredients = ingredients.filter(ingredient => {
         let matchesFilters = true
@@ -40,7 +39,11 @@ const processSimilarIngredients = (ingredients, selectedFilters, userInput) => {
             }
         })
         return matchesFilters
-    }); 
+    }).filter(ingredient => 
+        ignoredRecipes.filter( 
+            id => ingredient.recipeId === id
+        ).length === 0 
+    ) 
 
     let ingredientsSimilarity = [];
 
@@ -70,8 +73,7 @@ const processSimilarIngredients = (ingredients, selectedFilters, userInput) => {
 }
 
 parentPort.on('message', (params) => {
-    console.log(params.ingredient)
-    const result = processSimilarIngredients(params.ingredients, params.selectedFilters, params.ingredient);
+    const result = processSimilarIngredients(params.ingredients, params.selectedFilters, params.ignoredRecipes, params.ingredient);
     
     parentPort.postMessage(result);
 })

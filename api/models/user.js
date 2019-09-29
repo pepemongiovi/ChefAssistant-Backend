@@ -20,6 +20,12 @@ const schema = new Schema({
         required: false,
         default: [],
         ref: 'Recipe'
+    }],
+    ignoredRecipes: [{
+        type: mongoose.Schema.Types.ObjectId, 
+        required: false,
+        default: [],
+        ref: 'Recipe'
     }]
 });
 

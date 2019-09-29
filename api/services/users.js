@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../helpers/db');
 const User = db.User;
+const mongoose = require('mongoose');
 
 module.exports = {
     authenticate,
@@ -58,14 +59,13 @@ async function update(id, userParam) {
     if (user.username !== userParam.username && await User.findOne({ username: userParam.username })) {
         throw 'Username "' + userParam.username + '" is already taken';
     }
-
+    
     // hash password if it was entered
     if (userParam.password) {
         userParam.hash = bcrypt.hashSync(userParam.password, 10);
     }
 
-    // copy userParam properties to user
-    Object.assign(user, userParam);
+    user.favoriteRecipes = userParam.favoriteRecipes;
 
     await user.save();
 }
