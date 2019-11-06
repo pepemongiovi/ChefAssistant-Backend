@@ -10,10 +10,6 @@ const ingredientSchema = mongoose.Schema({
         type: String,
         required: true
     },
-    ingredientsPaired: {
-        type: Number,
-        required: true
-    },
     recipeId: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Recipe'

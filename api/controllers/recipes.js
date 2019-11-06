@@ -20,7 +20,6 @@ const addIngredients = (ingredients, recipeId) => {
         req.body = {
             _id: new mongoose.Types.ObjectId,
             name: i.name,
-            ingredientsPaired: ingredients.length,
             originalString: i.originalString,
             recipeId: recipeId
         }
@@ -50,33 +49,37 @@ exports.updateRecipe = (req, res, next) => {
 
 exports.getRecommendedRecipes = (req, res, next) => {
     const ingredientsId = req.body.ingredientsIds;
-    const mainIngredientIds = req.body.mainIngredientIds.filter(
-                        ingredient => ingredient.distance < 15);
-    
+    const mainIngredientIds = req.body.mainIngredientIds
+
     ingredientsId.push(mainIngredientIds)
     
     let recipes = {}
 
     //Finds intersection between similar ingredient's recipeId
     ingredientsId.forEach(ids => {
+        const recipesWithMatchedIngredient = []
         ids.forEach(ingredient => {
-            let id = ingredient.recipeId
-            if(recipes[id] && recipes[id].matchedIngredients.filter(n => n == ingredient.name).length==0) {
-                recipes[id].matchedIngredients.push(ingredient.name);
-            }
-            else if(!recipes[id]){
-                recipes[id] = {
-                    recipeId: id,
-                    matchedIngredients: [ingredient.name], 
-                    totalRecipeIngredientsCount: ingredient.totalRecipeIngredientsCount
+            const id = ingredient.recipeId
+
+            if(!recipesWithMatchedIngredient.find(_id => _id === id)) {
+                recipesWithMatchedIngredient.push(id)
+
+                if(recipes[id] && recipes[id].matchedIngredients.filter(n => n == ingredient.name).length==0) {
+                    recipes[id].matchedIngredients.push(ingredient.name);
                 }
-            }
+                else if(!recipes[id]){
+                    recipes[id] = {
+                        recipeId: id,
+                        matchedIngredients: [ingredient.name]
+                    }
+                }
+            } 
         })
     })
 
     recipes = Object.keys(recipes).map(key => recipes[key])
                 .sort((r1, r2) => (r2.matchedIngredients.length - r1.matchedIngredients.length))
-                .filter((e, i) => i<200)
+                .filter((e, i) => i<400)
 
     recipesWithMainIngredient = recipes.filter(recipe => 
             mainIngredientIds.filter(i => i.recipeId == recipe.recipeId).length > 0)
@@ -85,7 +88,7 @@ exports.getRecommendedRecipes = (req, res, next) => {
             mainIngredientIds.filter(i => i.recipeId == recipe.recipeId).length == 0)
 
     recipes = recipesWithMainIngredient.concat(otherRecipes)
-
+    
     res.status(200).json({ recipes: recipes.filter((obj, i) => i < 20) })
 }
 

@@ -8,8 +8,6 @@ router.post('/register', UserController.register);
 
 router.get('/', UserController.getAll);
 
-router.get('/current', UserController.getCurrent);
-
 router.get('/:id', UserController.getById);
 
 router.put('/:id', UserController.update);

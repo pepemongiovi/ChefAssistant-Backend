@@ -3,9 +3,9 @@ const { parentPort } = require('worker_threads')
 const levenshteinDistance = (str1, str2) => {
     const rows = str1.length + 1
     const cols = str2.length + 1
-    const deleteCost = 8
+    const substituteCost = 15
+    const deleteCost = 5
     const insertCost = 5
-    const substituteCost = 13
 
     let matrix = Array(rows).fill().map(() => Array(cols).fill(0));
         
@@ -29,7 +29,7 @@ const levenshteinDistance = (str1, str2) => {
     return matrix[rows-1][cols-1];
 }
 
-const processSimilarIngredients = (ingredients, selectedFilters, ignoredRecipes, userInput) => {
+const processSimilarIngredients = (ingredients, selectedFilters, ignoredRecipes, userInput, isMainIngredient) => {
     //Filters the ingredients by selected filters
     ingredients = ingredients.filter(ingredient => {
         let matchesFilters = true
@@ -60,20 +60,26 @@ const processSimilarIngredients = (ingredients, selectedFilters, ignoredRecipes,
         ingredientsSimilarity.push({
             name: ingredient.name, 
             distance: minimumEditDistance, 
-            recipeId: ingredient.recipeId,
-            totalRecipeIngredientsCount: ingredient.ingredientsPaired
+            recipeId: ingredient.recipeId
         });
     })
-  
-    ingredientsSimilarity = ingredientsSimilarity.sort((a, b) => (a.distance > b.distance) ? 1 : -1)
-                                .filter((obj, index) => index<3000)
-                                .filter(ingredient => ingredient.distance < 25)
 
-    return ingredientsSimilarity
+    return ingredientsSimilarity.sort((a, b) => (a.distance > b.distance) ? 1 : -1)
+                                .filter(ingredient => 
+                                    ingredient.distance < (isMainIngredient ? 15 : 20)
+                                )
+                                .filter((obj, index) => index<3000)
+                                
 }
 
 parentPort.on('message', (params) => {
-    const result = processSimilarIngredients(params.ingredients, params.selectedFilters, params.ignoredRecipes, params.ingredient);
+    const result = processSimilarIngredients(
+        params.ingredients,
+        params.selectedFilters,
+        params.ignoredRecipes,
+        params.ingredient,
+        params.isMainIngredient
+    );
     
     parentPort.postMessage(result);
 })
